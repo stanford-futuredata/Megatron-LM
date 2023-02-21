@@ -344,16 +344,10 @@ def validate_args(args, defaults={}):
                 "Using async gradient all reduce requires setting the environment "
                 "variable CUDA_DEVICE_MAX_CONNECTIONS to 1")
 
-    # Expert model parallelism assume local DDP and contiguous buffers.
-    if args.moe_expert_model_parallelism:
-        assert args.DDP_impl == 'local'
-        assert args.use_contiguous_buffers_in_local_ddp
-
-        # Expert model parallelism does not work with the distributed optimizer
-        # yet. The distributed optimizer assumes that all of the parameters to
-        # optimize are in the contiguous gradient buffer but this is not true
-        # when we are using expert model parallelism.
-        assert not args.use_distributed_optimizer
+    # Pipeline parallelism not supported with MoE.
+    if args.moe_num_experts is not None:
+        assert args.pipeline_model_paralle_size == 1, (
+            "Pipeline parallelism not yet support for MoEs.")
 
     _print_args(args)
     return args
@@ -490,9 +484,6 @@ def _add_moe_args(parser):
                        'not used if set to None.')
     group.add_argument('--moe-use-megatron-switch', type=bool, default=False,
                        help='Whether to use Megatron SwitchMLP for MoE layers.')
-    group.add_argument('--moe-expert-model-parallelism', action='store_true',
-                       default=False, help='Enable expert model paralleism within'
-                       ' the data parallel group')
     return parser
 
 
