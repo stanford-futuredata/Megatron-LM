@@ -346,7 +346,7 @@ def validate_args(args, defaults={}):
 
     # Pipeline parallelism not supported with MoE.
     if args.moe_num_experts is not None:
-        assert args.pipeline_model_paralle_size == 1, (
+        assert args.pipeline_model_parallel_size == 1, (
             "Pipeline parallelism not yet support for MoEs.")
 
     _print_args(args)
