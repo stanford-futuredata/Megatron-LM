@@ -8,8 +8,6 @@ from torch._six import inf
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 
-from megatron.core import parallel_state
-from megatron.model import megablocks_utils
 from megatron.model.module import param_is_not_shared
 from megatron.core.tensor_parallel import param_is_not_tensor_parallel_duplicate
 
@@ -44,15 +42,6 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
     if isinstance(grads_for_norm, torch.Tensor):
         grads_for_norm = [grads_for_norm]
 
-    # Separate the gradients into data and expert parallel groups.
-    dp_grads_for_norm = []
-    ep_grads_for_norm = []
-    for (param, grad) in zip(parameters, grads_for_norm):
-        if megablocks_utils.param_is_expert_model_parallel(param):
-            ep_grads_for_norm.append(grad)
-        else:
-            dp_grads_for_norm.append(grad)
-
     # Grads.
     grads = []
     for param in parameters:
@@ -67,8 +56,6 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
 
     # Calculate norm.
     if norm_type == inf:
-        # NOTE: 'inf' norm not yet implemented for expert parallelism.
-        assert not ep_grads_for_norm
         total_norm = max(grad.abs().max() for grad in grads_for_norm)
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
@@ -79,49 +66,27 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
 
     else:
         if norm_type == 2.0:
+            dummy_overflow_buf = torch.cuda.IntTensor([0])
             # Use apex's multi-tensor applier for efficiency reasons.
             # Multi-tensor applier takes a function and a list of list
             # and performs the operation on that list all in one kernel.
-            if dp_grads_for_norm:
-                dummy_overflow_buf = torch.cuda.IntTensor([0])
-                dp_grad_norm, _ = multi_tensor_applier(
+            if grads_for_norm:
+                grad_norm, _ = multi_tensor_applier(
                     amp_C.multi_tensor_l2norm,
                     dummy_overflow_buf,
-                    [dp_grads_for_norm],
+                    [grads_for_norm],
                     False # no per-parameter norm
                 )
             else:
-                dp_grad_norm = torch.cuda.FloatTensor([0])
-
-            if ep_grads_for_norm:
-                dummy_overflow_buf = torch.cuda.IntTensor([0])
-                ep_grad_norm, _ = multi_tensor_applier(
-                    amp_C.multi_tensor_l2norm,
-                    dummy_overflow_buf,
-                    [ep_grads_for_norm],
-                    False # no per-parameter norm
-                )
-            else:
-                ep_grad_norm  = torch.cuda.FloatTensor([0])
-
+                grad_norm = torch.cuda.FloatTensor([0])
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
-            ep_total_norm = ep_grad_norm ** norm_type
-            total_norm = dp_grad_norm ** norm_type
+            total_norm = grad_norm ** norm_type
 
         else:
-            assert not ep_grads_for_norm
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
-
-        # Sum across expert-parallel GPUs for expert parallel parameters
-        # and combine the expert-parallel norm with the rest of the norm.
-        if ep_grads_for_norm:
-            torch.distributed.all_reduce(ep_total_norm,
-                                     op=torch.distributed.ReduceOp.SUM,
-                                     group=parallel_state.get_data_parallel_group())
-            total_norm += ep_total_norm
 
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(total_norm,

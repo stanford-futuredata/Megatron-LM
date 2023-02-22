@@ -9,7 +9,6 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from megatron import get_args
 from megatron.core import mpu
-from megatron.model import megablocks_utils
 from .module import MegatronModule
 
 
@@ -120,13 +119,9 @@ class DistributedDataParallel(DistributedDataParallelBase):
                     self.accumulate_allreduce_grads_in_fp32 else param.dtype
 
             # First calculate total number of elements per type.
-            #
-            # Do not include parameters that are shards of an expert model
-            # parallel weight matrix.
             type_num_elements = {}
             for param in self.module.parameters():
-                if (param.requires_grad and
-                    not megablocks_utils.param_is_expert_model_parallel(param)):
+                if param.requires_grad:
                     dtype = _get_buffer_type(param)
                     type_num_elements[dtype] = type_num_elements.get(dtype, 0) \
                                                + param.data.nelement()
@@ -149,8 +144,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
             # Assume the back prop order is reverse the params order,
             # store the start index for the gradients.
             for param in self.module.parameters():
-                if (param.requires_grad and
-                    not megablocks_utils.param_is_expert_model_parallel(param)):
+                if param.requires_grad:
                     dtype = _get_buffer_type(param)
                     type_num_elements[dtype] -= param.data.nelement()
                     param.main_grad = self._grad_buffers[dtype].get(
@@ -168,8 +162,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
             self.grad_accs = []
             # Loop over all the parameters in the model.
             for param in self.module.parameters():
-                if (param.requires_grad and
-                    not megablocks_utils.param_is_expert_model_parallel(param)):
+                if param.requires_grad:
                     # Expand so we get access to grad_fn.
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator functtion.

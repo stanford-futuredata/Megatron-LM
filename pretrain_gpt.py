@@ -9,7 +9,7 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron import get_timers
 from megatron import get_tokenizer
-from megatron.core import tensor_parallel, parallel_state
+from megatron.core import tensor_parallel
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
 from megatron.model import GPTModel, ModelType, megablocks_utils
 from megatron.model.megablocks_utils import moe
@@ -71,16 +71,9 @@ def loss_func(loss_mask, output_tensor):
 
     return loss, {'lm loss': averaged_loss[0]}
 
-def moe_loss_func(loss_mask, output_tensor=None):
-    # NOTE: For pipeline parallelism this function will be run on the
-    # non-final stages to calculate load balancing loss contribution
-    # for the MoE layers within the stage. For these cases, output_tensor
-    # will be None.
-    loss, loss_dict = (None, {})
-    if parallel_state.is_pipeline_last_stage():
-        assert output_tensor is not None
-        loss, loss_dict = loss_func(loss_mask, output_tensor)
-        assert loss.numel() == 1
+def moe_loss_func(loss_mask, output_tensor):
+    loss, loss_dict = loss_func(loss_mask, output_tensor)
+    assert loss.numel() == 1
 
     # NOTE: If recompute is enabled we will collect duplicate load
     # balancing loss contributions. Prune these before calculating
@@ -152,5 +145,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 if __name__ == "__main__":
     pretrain(train_valid_test_datasets_provider, model_provider,
-             ModelType.encoder_or_decoder, forward_step,
-             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+             ModelType.encoder_or_decoder,
+             forward_step,
+             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}
+    )

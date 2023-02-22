@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from megatron import get_timers, get_args, core, get_num_microbatches
 from .module import MegatronModule
-from megatron.core import mpu, tensor_parallel, parallel_state
+from megatron.core import mpu, tensor_parallel
 from megatron.model.enums import AttnMaskType, ModelType, LayerType, AttnType
 from megatron.model import LayerNorm, megablocks_utils
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -186,13 +186,6 @@ class _MegablocksAdapter(MegatronModule):
         args.device = torch.cuda.current_device()
         args.init_method = init_method
         args.output_layer_init_method = output_layer_init_method
-
-        # NOTE: Shard the MoE layers over the data parallel group. Expert
-        # parallel sharding and data parallel sharding could be decoupled
-        # by extending the optimizer to handle data parallel reductions for
-        # MoE and non-MoE parameters separately.
-        if args.moe_expert_model_parallelism:
-            args.expert_parallel_group = parallel_state.get_data_parallel_group()
         self.moe = layer_cls(args)
 
     def forward(self, x):
