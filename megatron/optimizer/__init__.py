@@ -4,6 +4,7 @@ from apex.optimizers import FusedAdam as Adam
 from apex.optimizers import FusedSGD as SGD
 
 from megatron import get_args
+from megatron.optimizer.adafactor import Adafactor
 
 from .distrib_optimizer import DistributedOptimizer
 from .grad_scaler import ConstantGradScaler, DynamicGradScaler
@@ -83,6 +84,12 @@ def get_megatron_optimizer(model,
                         lr=args.lr,
                         weight_decay=args.weight_decay,
                         momentum=args.sgd_momentum)
+    elif args.optimizer == 'adafactor':
+        optimizer = Adafactor(param_groups,
+                              lr=args.lr,
+                              weight_decay=args.weight_decay,
+                              scale_parameter=False,
+                              relative_step=False)
     else:
         raise Exception('{} optimizer is not supported.'.format(
             args.optimizer))
