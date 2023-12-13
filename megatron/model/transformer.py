@@ -193,6 +193,9 @@ class _MegablocksAdapter(MegatronModule):
         # MoE and non-MoE parameters separately.
         if args.moe_expert_model_parallelism:
             args.expert_parallel_group = parallel_state.get_data_parallel_group()
+
+        if get_args().glu:
+            args.mlp_type = "glu"
         self.moe = layer_cls(args)
 
     def forward(self, x):

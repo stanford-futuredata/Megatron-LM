@@ -465,6 +465,8 @@ def _add_network_size_args(parser):
     group.add_argument('--bert-no-binary-head', action='store_false',
                        help='Disable BERT binary head.',
                        dest='bert_binary_head')
+    group.add_argument('--glu', action='store_true',
+                       help='Use gated linear units')
     return parser
 
 
