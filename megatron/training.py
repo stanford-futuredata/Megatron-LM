@@ -395,7 +395,7 @@ def setup_model_and_optimizer(model_provider_func,
         and hasattr(unwrapped_model[0], 'init_state_dict_from_bert'):
         print_rank_0("Initializing ICT from pretrained BERT model")
         unwrapped_model[0].init_state_dict_from_bert()
-        if args.fp16:
+        if args.fp16 or args.bf16:
             optimizer.reload_model_params()
 
     return model, optimizer, opt_param_scheduler
