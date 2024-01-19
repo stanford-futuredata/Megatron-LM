@@ -125,7 +125,7 @@ def forward_step(data_iterator, model):
                           labels=labels)
 
     loss_fn = (
-        moe_loss_func if args.moe_num_experts is not None else loss_func)
+        moe_loss_func if args.moe_num_experts is not None and model.training else loss_func)
     return output_tensor, partial(loss_fn, loss_mask)
 
 def train_valid_test_datasets_provider(train_val_test_num_samples):

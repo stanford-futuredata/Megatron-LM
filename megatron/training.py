@@ -844,13 +844,6 @@ def evaluate(forward_step_func,
     for key in total_loss_dict:
         total_loss_dict[key] /= args.eval_iters * get_num_microbatches()
 
-    # Sum LBLs across pipeline-model-parallel shards.
-    if args.model_type == ModelType.encoder_or_decoder_with_lbl:
-        assert "load balancing loss" in total_loss_dict
-        torch.distributed.all_reduce(
-            total_loss_dict["load balancing loss"],
-            group=mpu.get_pipeline_model_parallel_group())
-
     return total_loss_dict, collected_non_loss_data
 
 def evaluate_and_print_results(prefix, forward_step_func,
